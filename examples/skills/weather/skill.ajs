@@ -1,0 +1,25 @@
+/**
+ * Weather Skill
+ *
+ * Fetches weather forecast for a location.
+ * Trust level: network (only needs fetch capability)
+ */
+function getWeather({ city, state }) {
+  // In a real implementation, you'd first geocode the city
+  // For this example, we'll use a hardcoded grid point for Seattle
+  let forecastUrl = 'https://api.weather.gov/gridpoints/SEW/124,67/forecast'
+
+  let response = httpFetch({ url: forecastUrl })
+
+  if (response.properties && response.properties.periods) {
+    let today = response.properties.periods[0]
+    return {
+      location: city + ', ' + state,
+      temperature: today.temperature + '°' + today.temperatureUnit,
+      forecast: today.shortForecast,
+      detailed: today.detailedForecast
+    }
+  }
+
+  return { error: 'Could not fetch weather data' }
+}

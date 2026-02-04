@@ -1,0 +1,16 @@
+{
+  "name": "weather",
+  "description": "Get weather forecast for a US location",
+  "version": "1.0.0",
+  "trustLevel": "network",
+  "capabilities": ["fetch"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "city": { "type": "string" },
+      "state": { "type": "string" }
+    },
+    "required": ["city"]
+  },
+  "tags": ["weather", "api", "utility"]
+}

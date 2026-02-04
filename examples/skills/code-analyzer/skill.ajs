@@ -1,0 +1,55 @@
+/**
+ * Code Analyzer Skill
+ *
+ * Analyzes source code files and provides insights.
+ * Trust level: read (needs filesystem access to read source files)
+ */
+function analyzeCode({ filePath }) {
+  // Read the file
+  let content = files.read(filePath)
+
+  // Basic analysis
+  let lines = content.split('\n')
+  let lineCount = lines.length
+  let charCount = content.length
+
+  // Count different elements
+  let functionCount = 0
+  let commentCount = 0
+  let importCount = 0
+  let emptyLines = 0
+
+  for (let line of lines) {
+    let trimmed = line.trim()
+
+    if (trimmed === '') {
+      emptyLines = emptyLines + 1
+    }
+    if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+      commentCount = commentCount + 1
+    }
+    if (trimmed.startsWith('import ') || trimmed.startsWith('const ') && trimmed.includes('require(')) {
+      importCount = importCount + 1
+    }
+    if (trimmed.startsWith('function ') || trimmed.includes(' function ') || trimmed.includes('=>')) {
+      functionCount = functionCount + 1
+    }
+  }
+
+  return {
+    filePath: filePath,
+    metrics: {
+      lines: lineCount,
+      characters: charCount,
+      functions: functionCount,
+      comments: commentCount,
+      imports: importCount,
+      emptyLines: emptyLines,
+      codeLines: lineCount - emptyLines - commentCount
+    },
+    density: {
+      commentsPercentage: Math.round((commentCount / lineCount) * 100),
+      codePercentage: Math.round(((lineCount - emptyLines - commentCount) / lineCount) * 100)
+    }
+  }
+}

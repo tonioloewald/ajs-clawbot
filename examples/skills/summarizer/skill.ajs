@@ -1,0 +1,42 @@
+/**
+ * Summarizer Skill
+ *
+ * Summarizes text or web content using an LLM.
+ * Trust level: llm (needs LLM capability, optionally fetch)
+ */
+function summarize({ text, url, maxLength }) {
+  let contentToSummarize = text
+
+  // If URL is provided, fetch the content
+  if (url && !text) {
+    let response = httpFetch({ url: url })
+    // Assume response is text or has a text property
+    contentToSummarize = typeof response === 'string' ? response : JSON.stringify(response)
+  }
+
+  if (!contentToSummarize) {
+    return { error: 'Please provide either text or a URL to summarize' }
+  }
+
+  // Build the prompt
+  let lengthInstruction = maxLength
+    ? 'Keep the summary under ' + maxLength + ' words.'
+    : 'Provide a concise summary.'
+
+  let prompt = 'Please summarize the following content. ' + lengthInstruction + '\n\n' + contentToSummarize
+
+  // Call the LLM
+  let summary = llmPredict({
+    prompt: prompt,
+    options: {
+      temperature: 0.3,
+      maxTokens: 500
+    }
+  })
+
+  return {
+    originalLength: contentToSummarize.length,
+    summary: summary,
+    source: url ? url : 'provided text'
+  }
+}

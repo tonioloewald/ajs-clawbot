@@ -1,0 +1,15 @@
+{
+  "name": "code-analyzer",
+  "description": "Analyze source code files and provide metrics",
+  "version": "1.0.0",
+  "trustLevel": "read",
+  "capabilities": ["files"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "filePath": { "type": "string" }
+    },
+    "required": ["filePath"]
+  },
+  "tags": ["code", "analysis", "development"]
+}

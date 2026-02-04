@@ -1,0 +1,62 @@
+{
+  "name": "ajs-clawbot",
+  "version": "0.1.0",
+  "description": "Safe execution layer for OpenClaw/Clawbot using tjs-lang's capability-based VM",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./capabilities": {
+      "types": "./dist/capabilities/index.d.ts",
+      "bun": "./src/capabilities/index.ts",
+      "default": "./dist/capabilities/index.js"
+    },
+    "./executor": {
+      "types": "./dist/executor/index.d.ts",
+      "bun": "./src/executor/index.ts",
+      "default": "./dist/executor/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "tjs-lang": "file:../tosijs-agent"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.2"
+  },
+  "peerDependencies": {
+    "tjs-lang": ">=0.2.0"
+  },
+  "keywords": [
+    "openclaw",
+    "clawbot",
+    "ai-agent",
+    "sandbox",
+    "security",
+    "capability-based",
+    "rate-limiting",
+    "flood-protection"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/user/ajs-clawbot.git"
+  },
+  "author": "",
+  "license": "Apache-2.0"
+}

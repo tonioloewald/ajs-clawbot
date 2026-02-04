@@ -1,0 +1,16 @@
+{
+  "name": "summarizer",
+  "description": "Summarize text or web content using AI",
+  "version": "1.0.0",
+  "trustLevel": "llm",
+  "capabilities": ["llm", "fetch"],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "description": "Text to summarize" },
+      "url": { "type": "string", "description": "URL to fetch and summarize" },
+      "maxLength": { "type": "number", "description": "Maximum words in summary" }
+    }
+  },
+  "tags": ["ai", "summarization", "text"]
+}

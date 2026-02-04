@@ -1,0 +1,40 @@
+/**
+ * Calculator Skill
+ *
+ * Performs mathematical calculations.
+ * Trust level: none (pure computation, no I/O needed)
+ */
+function calculate({ expression, operation, a, b }) {
+  // If a simple operation is specified
+  if (operation) {
+    if (operation === 'add') {
+      return { result: a + b }
+    }
+    if (operation === 'subtract') {
+      return { result: a - b }
+    }
+    if (operation === 'multiply') {
+      return { result: a * b }
+    }
+    if (operation === 'divide') {
+      if (b === 0) {
+        return { error: 'Division by zero' }
+      }
+      return { result: a / b }
+    }
+    if (operation === 'power') {
+      return { result: Math.pow(a, b) }
+    }
+    if (operation === 'sqrt') {
+      if (a < 0) {
+        return { error: 'Cannot take square root of negative number' }
+      }
+      return { result: Math.sqrt(a) }
+    }
+    return { error: 'Unknown operation: ' + operation }
+  }
+
+  // For more complex expressions, we'd need an expression parser
+  // but that's beyond the scope of this example
+  return { error: 'Please specify an operation (add, subtract, multiply, divide, power, sqrt)' }
+}

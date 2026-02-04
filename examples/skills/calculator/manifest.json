@@ -1,0 +1,20 @@
+{
+  "name": "calculator",
+  "description": "Perform mathematical calculations",
+  "version": "1.0.0",
+  "trustLevel": "none",
+  "capabilities": [],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "operation": {
+        "type": "string",
+        "enum": ["add", "subtract", "multiply", "divide", "power", "sqrt"]
+      },
+      "a": { "type": "number" },
+      "b": { "type": "number" }
+    },
+    "required": ["operation", "a"]
+  },
+  "tags": ["math", "utility", "safe"]
+}
