@@ -9,6 +9,15 @@
  * shell and filesystem capabilities. Edit this file to customize
  * what's blocked in your deployment.
  *
+ * LESSONS LEARNED FROM OPENCLAW:
+ * This file incorporates security lessons from OpenClaw's production deployment:
+ * - Dangerous environment variables that can hijack execution (LD_PRELOAD, etc.)
+ * - SSRF protection patterns (cloud metadata services, private IPs)
+ * - Symlink attack vectors
+ * - IPv4-mapped-IPv6 bypass attempts
+ * See: https://github.com/BizHacks/OpenClaw/blob/main/src/infra/net/ssrf.ts
+ *      https://github.com/BizHacks/OpenClaw/blob/main/src/agents/bash-tools.exec.ts
+ *
  * NAMING CONVENTION FOR SENSITIVE CONFIG:
  * Name your sensitive configuration files to match blocked patterns:
  * - *.secrets.ts / *.secrets.json - matches /secrets\./
@@ -36,6 +45,278 @@ export interface BlockedPattern {
 export interface DangerousPattern {
   pattern: RegExp;
   description: string;
+}
+
+/**
+ * DANGEROUS ENVIRONMENT VARIABLES
+ *
+ * These environment variables can be used to hijack execution or inject code.
+ * Learned from OpenClaw's production security hardening.
+ * Source: https://github.com/BizHacks/OpenClaw/blob/main/src/agents/bash-tools.exec.ts
+ *
+ * These should be blocked when passing env vars to subprocess execution.
+ */
+export const DANGEROUS_ENV_VARS = new Set([
+  // Dynamic linker injection (Linux)
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_AUDIT",
+
+  // Dynamic linker injection (macOS)
+  "DYLD_INSERT_LIBRARIES",
+  "DYLD_LIBRARY_PATH",
+
+  // Node.js code injection
+  "NODE_OPTIONS",
+  "NODE_PATH",
+
+  // Python code injection
+  "PYTHONPATH",
+  "PYTHONHOME",
+
+  // Ruby code injection
+  "RUBYLIB",
+
+  // Perl code injection
+  "PERL5LIB",
+
+  // Shell startup injection
+  "BASH_ENV",
+  "ENV",
+
+  // Glibc character conversion (can load arbitrary .so)
+  "GCONV_PATH",
+
+  // Shell field separator manipulation
+  "IFS",
+
+  // SSL key logging (security leak)
+  "SSLKEYLOGFILE",
+]);
+
+/**
+ * Prefixes that indicate dangerous env vars.
+ * Any env var starting with these should be blocked.
+ */
+export const DANGEROUS_ENV_PREFIXES = ["DYLD_", "LD_"];
+
+/**
+ * Check if an environment variable name is dangerous
+ */
+export function isDangerousEnvVar(name: string): boolean {
+  const upper = name.toUpperCase();
+  if (DANGEROUS_ENV_VARS.has(upper)) {
+    return true;
+  }
+  for (const prefix of DANGEROUS_ENV_PREFIXES) {
+    if (upper.startsWith(prefix)) {
+      return true;
+    }
+  }
+  // Also block PATH modification (binary hijacking)
+  if (upper === "PATH") {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Filter dangerous env vars from an environment object
+ */
+export function sanitizeEnv(
+  env: Record<string, string | undefined>
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value !== undefined && !isDangerousEnvVar(key)) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * SSRF PROTECTION PATTERNS
+ *
+ * These patterns protect against Server-Side Request Forgery attacks.
+ * Learned from OpenClaw's SSRF protection implementation.
+ * Source: https://github.com/BizHacks/OpenClaw/blob/main/src/infra/net/ssrf.ts
+ */
+
+/**
+ * Hostnames that should always be blocked (SSRF targets)
+ */
+export const BLOCKED_HOSTNAMES = new Set([
+  "localhost",
+  "metadata.google.internal", // GCP metadata service
+]);
+
+/**
+ * Hostname suffixes that indicate internal/local resources
+ */
+export const BLOCKED_HOSTNAME_SUFFIXES = [".localhost", ".local", ".internal"];
+
+/**
+ * Check if a hostname should be blocked
+ */
+export function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase().replace(/\.$/, "");
+  if (!normalized) return false;
+
+  // Strip brackets from IPv6
+  const clean =
+    normalized.startsWith("[") && normalized.endsWith("]")
+      ? normalized.slice(1, -1)
+      : normalized;
+
+  if (BLOCKED_HOSTNAMES.has(clean)) {
+    return true;
+  }
+
+  for (const suffix of BLOCKED_HOSTNAME_SUFFIXES) {
+    if (clean.endsWith(suffix)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Parse IPv4 address into octets
+ */
+function parseIPv4(address: string): number[] | null {
+  const parts = address.split(".");
+  if (parts.length !== 4) return null;
+
+  const numbers = parts.map((p) => Number.parseInt(p, 10));
+  if (numbers.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+    return null;
+  }
+  return numbers;
+}
+
+/**
+ * Check if an IPv4 address is private/internal
+ */
+function isPrivateIPv4(octets: number[]): boolean {
+  const [a, b] = octets;
+
+  // 0.0.0.0/8 - Current network
+  if (a === 0) return true;
+
+  // 10.0.0.0/8 - Private
+  if (a === 10) return true;
+
+  // 127.0.0.0/8 - Loopback
+  if (a === 127) return true;
+
+  // 169.254.0.0/16 - Link-local (IMPORTANT: cloud metadata often here!)
+  if (a === 169 && b === 254) return true;
+
+  // 172.16.0.0/12 - Private
+  if (a === 172 && b >= 16 && b <= 31) return true;
+
+  // 192.168.0.0/16 - Private
+  if (a === 192 && b === 168) return true;
+
+  // 100.64.0.0/10 - Carrier-grade NAT
+  if (a === 100 && b >= 64 && b <= 127) return true;
+
+  return false;
+}
+
+/**
+ * IPv6 prefixes that indicate private/internal addresses
+ */
+const PRIVATE_IPV6_PREFIXES = [
+  "fe80:", // Link-local
+  "fec0:", // Site-local (deprecated but still used)
+  "fc", // Unique local (fc00::/7)
+  "fd", // Unique local (fc00::/7)
+];
+
+/**
+ * Check if an IP address is private/internal
+ * Handles IPv4, IPv6, and IPv4-mapped-IPv6 addresses
+ */
+export function isPrivateIP(address: string): boolean {
+  let normalized = address.trim().toLowerCase();
+
+  // Strip brackets from IPv6
+  if (normalized.startsWith("[") && normalized.endsWith("]")) {
+    normalized = normalized.slice(1, -1);
+  }
+
+  if (!normalized) return false;
+
+  // Check for IPv4-mapped IPv6 (::ffff:192.168.1.1)
+  // This is a bypass technique - the IPv6 looks different but resolves to IPv4
+  if (normalized.startsWith("::ffff:")) {
+    const mapped = normalized.slice("::ffff:".length);
+    const ipv4 = parseIPv4(mapped);
+    if (ipv4) {
+      return isPrivateIPv4(ipv4);
+    }
+    // Handle hex representation of IPv4 in mapped address
+    const parts = mapped.split(":").filter(Boolean);
+    if (parts.length <= 2) {
+      // Could be hex representation like ::ffff:c0a8:0101 (192.168.1.1)
+      let value = 0;
+      for (const part of parts) {
+        value = (value << 16) + Number.parseInt(part, 16);
+      }
+      if (!Number.isNaN(value)) {
+        const octets = [
+          (value >>> 24) & 0xff,
+          (value >>> 16) & 0xff,
+          (value >>> 8) & 0xff,
+          value & 0xff,
+        ];
+        return isPrivateIPv4(octets);
+      }
+    }
+  }
+
+  // Check for IPv6
+  if (normalized.includes(":")) {
+    // Loopback
+    if (normalized === "::" || normalized === "::1") {
+      return true;
+    }
+    // Private prefixes
+    for (const prefix of PRIVATE_IPV6_PREFIXES) {
+      if (normalized.startsWith(prefix)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Check for IPv4
+  const ipv4 = parseIPv4(normalized);
+  if (ipv4) {
+    return isPrivateIPv4(ipv4);
+  }
+
+  return false;
+}
+
+/**
+ * Cloud metadata service IPs that should always be blocked
+ * These are used by cloud providers to expose instance metadata
+ */
+export const CLOUD_METADATA_IPS = [
+  "169.254.169.254", // AWS, GCP, Azure, DigitalOcean, etc.
+  "fd00:ec2::254", // AWS IPv6 metadata
+];
+
+/**
+ * Check if an IP is a cloud metadata service
+ */
+export function isCloudMetadataIP(address: string): boolean {
+  const normalized = address.trim().toLowerCase();
+  return CLOUD_METADATA_IPS.includes(normalized);
 }
 
 /**
