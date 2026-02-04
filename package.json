@@ -1,6 +1,6 @@
 {
   "name": "ajs-clawbot",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Safe execution layer for OpenClaw/Clawbot using tjs-lang's capability-based VM",
   "type": "module",
   "main": "./dist/index.js",

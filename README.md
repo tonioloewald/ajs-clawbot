@@ -495,6 +495,27 @@ interface ExecutionResult {
 
 ### Defense in Depth
 
+```
+  DEFENSE IN DEPTH (The Swiss Cheese Model)
+  =========================================
+
+  +---------------------------------------------------+
+  |  1. Syntax Check (Parser)                         |  <-- Blocks 'eval()'
+  +---|-----------------------------------------------+
+      |  +--------------------------------------------+
+      |  |  2. VM Capability Check (Runtime)          |  <-- Blocks 'fs.read'
+      +--|---|----------------------------------------+
+         |   |  +-------------------------------------+
+         |   |  |  3. Path/Network Allowlist (Logic)  |  <-- Blocks '.env'
+         +---|--|---|---------------------------------+
+             |  |   |  +------------------------------+
+             |  |   |  |  4. Resource Limits (Fuel)   |  <-- Blocks loops
+             +--+---+--+------------------------------+
+                        |
+                        v
+                 Safe Execution
+```
+
 1. **Syntax restrictions** - AJS forbids dangerous constructs at parse time
 2. **Capability isolation** - No capability = no access, enforced by VM
 3. **Resource limits** - Fuel metering prevents runaway execution
