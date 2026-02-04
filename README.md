@@ -144,6 +144,18 @@ if (result.success) {
 }
 ```
 
+## Performance
+
+The sandbox overhead is negligible:
+
+| Metric | Value |
+|--------|-------|
+| **Sandbox overhead per execution** | 0.174ms |
+| As % of typical API call (100ms) | 0.17% |
+| As % of typical LLM call (1000ms) | 0.017% |
+
+Security doesn't have to mean slow. See [BENCHMARK.md](./BENCHMARK.md) for methodology and full results.
+
 ## Comparison: Standard OpenClaw vs ajs-clawbot
 
 | Feature | Standard OpenClaw | With ajs-clawbot |
