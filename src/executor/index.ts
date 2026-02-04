@@ -9,6 +9,6 @@
  * they run in a sandboxed VM with only the capabilities you've granted.
  */
 
-export * from './safe-executor'
-export * from './skill-loader'
-export * from './trust-levels'
+export * from './safe-executor.js'
+export * from './skill-loader.js'
+export * from './trust-levels.js'

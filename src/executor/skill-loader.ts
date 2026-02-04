@@ -9,7 +9,7 @@
 import { ajs, transpile, type AgentAST } from 'tjs-lang'
 import { readFileSync, existsSync } from 'fs'
 import { join, dirname, basename, extname } from 'path'
-import { type TrustLevel, inferTrustLevel } from './trust-levels'
+import { type TrustLevel, inferTrustLevel } from './trust-levels.js'
 
 export interface SkillManifest {
   /** Skill name */
