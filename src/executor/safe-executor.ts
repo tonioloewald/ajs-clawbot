@@ -17,19 +17,19 @@ import {
   type TrustContext,
   getCapabilitiesForTrustLevel,
   validateTrustForSource,
-} from "./trust-levels";
+} from "./trust-levels.js";
 import {
   type LoadedSkill,
   loadSkill,
   loadSkillFromSource,
   validateSkill,
-} from "./skill-loader";
+} from "./skill-loader.js";
 import {
   RateLimiter,
   createDefaultRateLimiter,
   type RateLimiterOptions,
   type RejectionReason,
-} from "./rate-limiter";
+} from "./rate-limiter.js";
 
 export interface ExecutionContext {
   /** Source of the request: main session, DM, group, or public */

@@ -17,7 +17,7 @@ describe("Filesystem Capability Security", () => {
   writeFileSync(join(workspace, "readme.md"), "# Readme");
   mkdirSync(join(workspace, "subdir"));
   writeFileSync(join(workspace, "subdir", "nested.txt"), "Nested content");
-  writeFileSync(join(workspace, "subdir", "code.ts"), "const x = 1;");
+  writeFileSync(join(workspace, "subdir", "code"), "const x = 1;");
 
   const fs = createFilesystemCapability({
     root: workspace,

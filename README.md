@@ -1,8 +1,48 @@
 # ajs-clawbot
 
-**Safe execution layer for OpenClaw/Clawbot using capability-based security.**
+**Architectural Human-in-the-Loop: Sudo for AI Agents**
 
-Running an AI agent without proper sandboxing is like running a web server as root—possible, but irresponsible. This package provides the missing safety layer.
+Running an AI agent without proper sandboxing is like running a web server as root—possible, but irresponsible. This package provides the missing safety layer through **capability-based security** that makes dangerous operations impossible rather than merely discouraged.
+
+## Runtime-Layer vs Application-Layer Permission
+
+```
+  APPLICATION-LAYER                      RUNTIME-LAYER (ajs-clawbot)
+  ==================                     ===========================
+                                        
+  +------------------+                   +------------------+
+  |   Agent Code     |                   |   Agent Code     |
+  +--------+---------+                   +--------+---------+
+           |                                      |
+           v                                      v
+  +------------------+                   +------------------+
+  | if (allowed) {   |  <-- bypass!      |   fs.read()?     |
+  |   fs.read()      |                   +--------+---------+
+  | }                |                            |
+  +--------+---------+                            v
+           |                             +------------------+
+           v                             | CAPABILITY NOT   |
+  +------------------+                   | BOUND TO VM      |
+  |  fs.read() runs  |                   |                  |
+  |  (always exists) |                   | Function doesn't |
+  +------------------+                   | exist to call!   |
+                                         +------------------+
+```
+
+Most AI safety approaches use **Application-Layer Permission**: the capability exists, and a boolean check decides whether to use it. This is fundamentally flawed because:
+
+- The check can be bypassed via prompt injection
+- The capability is always *available*, just gated
+- Security depends on the AI "following rules"
+
+**ajs-clawbot** uses **Runtime-Layer Permission**: the capability literally doesn't exist until explicitly granted. There's nothing to bypass—the code physically cannot access what it hasn't been given.
+
+| Approach | How It Works | Failure Mode |
+|----------|-------------|--------------|
+| **Application-Layer** | `if (allowed) { fs.read() }` | Prompt injection bypasses the `if` |
+| **Runtime-Layer** | Capability not bound to VM | No `fs.read` function exists to call |
+
+This is the same model used by browser sandboxes, WebAssembly, and operating system capabilities. It's not novel—it's proven.
 
 ## The Problem
 
@@ -14,19 +54,64 @@ OpenClaw/Clawbot is powerful: it can execute shell commands, write files, contro
 4. **Run up massive API bills** with infinite loops
 5. **Use your bot as an attack platform** for SSRF
 
-Current "fixes" (regex filters, prompt engineering, "please don't do bad things") are trivially bypassed.
+Current "fixes" (regex filters, prompt engineering, "please don't do bad things") are Application-Layer Permission—trivially bypassed.
 
 ## The Solution
 
 **ajs-clawbot** wraps skill execution in [tjs-lang](https://github.com/tonioloewald/tjs-lang)'s capability-based VM:
 
-| Danger | Current "Fix" | ajs-clawbot Fix |
-|--------|---------------|-----------------|
-| Malicious shell commands | Regex / "please don't" | **Allowlist bindings** - command must be explicitly permitted |
-| Secret theft (.env) | "Don't look there" | **Filesystem jails** - hard logic barriers, not prompts |
-| SSRF / data exfiltration | Auth tokens / hope | **Domain allowlists** - can't fetch from unapproved hosts |
+| Danger | Application-Layer "Fix" | ajs-clawbot (Runtime-Layer) |
+|--------|------------------------|----------------------------|
+| Malicious shell commands | Regex / "please don't" | **Capability not granted** - no shell function exists |
+| Secret theft (.env) | "Don't look there" | **Filesystem capability** - can't read what you can't access |
+| SSRF / data exfiltration | Auth tokens / hope | **Fetch capability** - domains must be explicitly allowed |
 | Infinite loops | Manual Ctrl+C | **Fuel metering** - execution halts when budget exhausted |
 | Jailbroken prompts | Better prompts | **Immutable host logic** - security is code, not text |
+
+## JIT Capabilities: The Killer Feature
+
+```
+  HUMAN-IN-THE-LOOP FLOW
+  ======================
+                                        
+  +----------+     +-----------+     +------------------+
+  |  Agent   |---->|  Request  |---->|  Human/Policy    |
+  |  Code    |     | Capability|     |  Decision Point  |
+  +----------+     +-----------+     +--------+---------+
+                                              |
+                        +---------------------+---------------------+
+                        |                                           |
+                        v                                           v
+               +----------------+                          +----------------+
+               |    GRANTED     |                          |     DENIED     |
+               | Capability now |                          | Still no access|
+               | exists in VM   |                          | (safe default) |
+               +----------------+                          +----------------+
+```
+
+Traditional permission systems are static: decide upfront what's allowed. This forces you to either:
+- Over-provision (security risk)
+- Under-provision (functionality loss)
+
+**ajs-clawbot supports Just-In-Time (JIT) Capabilities**: grant permissions dynamically based on runtime context, user approval, or policy evaluation.
+
+```typescript
+const executor = new SafeExecutor({
+  onCapabilityRequest: async (skill, capability, context) => {
+    // Ask user for approval in real-time
+    if (context.source === 'dm') {
+      const approved = await askUser(
+        `Skill "${skill}" wants ${capability} access. Allow?`
+      )
+      return approved ? 'grant' : 'deny'
+    }
+    // Auto-deny for public sources
+    return 'deny'
+  }
+})
+```
+
+This enables **true human-in-the-loop security**: the agent can request elevated access, but a human (or policy engine) decides whether to grant it—at runtime, with full context.
 
 ## Quick Start
 
@@ -58,6 +143,19 @@ if (result.success) {
   console.error(result.error)
 }
 ```
+
+## Comparison: Standard OpenClaw vs ajs-clawbot
+
+| Feature | Standard OpenClaw | With ajs-clawbot |
+|---------|------------------|------------------|
+| Shell access | Always available | Granted per-skill, per-context |
+| File reading | Always available | Capability-gated, path-restricted |
+| Network requests | Always available | Domain allowlist enforced |
+| Infinite loops | Hope for the best | Fuel metering halts execution |
+| Prompt injection | Vulnerable | Capabilities don't exist to exploit |
+| Secret files | Rely on prompts | Blocked at runtime layer |
+| Public channel safety | Risky | Safe by default (zero capabilities) |
+| Audit trail | Manual logging | Built-in operation tracing |
 
 ## Core Concepts
 
@@ -141,6 +239,28 @@ const llm = createLLMCapability({
   maxRequests: 100,
 })
 ```
+
+## Rate Limiting & Flood Protection
+
+Beyond capability isolation, ajs-clawbot includes protection against abuse patterns:
+
+```typescript
+import { createDefaultRateLimiter } from 'ajs-clawbot'
+
+const executor = new SafeExecutor({
+  selfIds: ['bot-user-id'],  // Reject messages from ourselves (recursion attack)
+  rateLimiter: createDefaultRateLimiter(),
+  onRateLimited: (reason, requesterId) => {
+    console.log(`Rate limited ${requesterId}: ${reason}`)
+  }
+})
+```
+
+**Protections include:**
+- **Self-message rejection** - Prevents recursion/reflection attacks
+- **Per-requester limits** - Sliding window rate limiting
+- **Global limits** - Protects against distributed flooding
+- **Cooldown periods** - Automatic backoff for abusers
 
 ## Writing Safe Skills
 
@@ -316,6 +436,13 @@ class SafeExecutor {
     trustLevel?: TrustLevel
   ): Promise<ExecutionResult>
   
+  // Rate limiter access
+  getRateLimiter(): RateLimiter | undefined
+  addSelfId(id: string): void
+  isSelfId(id: string): boolean
+  getRateLimitStats(): RateLimitStats
+  clearUserCooldown(userId: string): void
+  
   // Cache management
   clearCache(): void
   invalidateSkill(skillPath: string): void
@@ -361,8 +488,10 @@ interface ExecutionResult {
 3. **Resource limits** - Fuel metering prevents runaway execution
 4. **Trust validation** - Source-based limits on what skills can run
 5. **Path-based blocking** - Sensitive files blocked by pattern, not just path
-6. **Opaque errors** - Blocked operations don't reveal why they failed
-7. **Audit trails** - Every operation is traceable via `onBlocked` callbacks
+6. **SSRF protection** - Private IPs, cloud metadata services, localhost all blocked
+7. **Opaque errors** - Blocked operations don't reveal why they failed
+8. **Audit trails** - Every operation is traceable via `onBlocked` callbacks
+9. **Rate limiting** - Flood and recursion attack protection
 
 ### Always-Blocked Patterns
 
@@ -377,6 +506,15 @@ These files are blocked regardless of configuration:
 | **Package managers** | `.npmrc`, `.yarnrc` |
 | **Cloud** | `.aws/*`, `.azure/*`, `.gcloud/*`, `.kube/*` |
 | **Databases** | `*.sqlite`, `*.db` |
+
+### SSRF Protection
+
+Network requests are validated against:
+- **Private IP ranges** - 10.x, 172.16-31.x, 192.168.x, localhost
+- **IPv6 private ranges** - fc00::/7, fe80::/10, ::1
+- **IPv4-mapped IPv6** - ::ffff:192.168.x.x bypass attempts detected
+- **Cloud metadata services** - 169.254.169.254, fd00:ec2::254
+- **Blocked hostnames** - localhost, metadata.google.internal, etc.
 
 ### Path Traversal Protection
 
@@ -412,6 +550,41 @@ const fs = createFilesystemCapability({
 - Vulnerabilities in the underlying runtime (Node.js, Bun)
 
 This is a **sandbox**, not a security boundary for hostile code. It's designed to protect against accidents and casual attacks, not nation-state adversaries.
+
+## Why Not Just Use Docker?
+
+```
+  DOCKER CONTAINER                       AJS-CLAWBOT
+  ================                       ===========
+                                        
+  +------------------------+             +------------------------+
+  |     Container          |             |      AJS VM            |
+  |  +------------------+  |             |  +------------------+  |
+  |  |    AI Agent      |  |             |  |    AI Agent      |  |
+  |  +------------------+  |             |  +------------------+  |
+  |          |             |             |          |             |
+  |          v             |             |          v             |
+  |  +------------------+  |             |  +------------------+  |
+  |  | FULL ACCESS to:  |  |             |  | ONLY what you    |  |
+  |  | - all files      |  |             |  | granted:         |  |
+  |  | - all network    |  |             |  | - specific files |  |
+  |  | - all commands   |  |             |  | - specific hosts |  |
+  |  +------------------+  |             |  | - specific cmds  |  |
+  +------------------------+             |  +------------------+  |
+           |                             +------------------------+
+           v                                        |
+    Heavy, slow startup                      Lightweight, instant
+    Escape vulnerabilities                   No escalation possible
+```
+
+Containers provide process isolation but don't solve the core problem:
+
+1. **The AI still has full access inside the container** - it can read all files, make all network calls, run all commands within its sandbox
+2. **You still need capability restrictions** - Docker doesn't know which files are secrets or which URLs are safe
+3. **Containers are heavy** - spinning up a container per request adds latency and resource overhead
+4. **Escape vulnerabilities exist** - container breakouts happen; defense in depth means not relying solely on one boundary
+
+ajs-clawbot works *inside* any deployment model (container, bare metal, serverless) and provides the fine-grained capability control that containers can't.
 
 ## Contributing
 

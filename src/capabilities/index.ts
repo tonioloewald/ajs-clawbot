@@ -10,25 +10,26 @@
  * enforces its own security constraints.
  */
 
-export * from "./shell";
-export * from "./filesystem";
-export * from "./fetch";
-export * from "./llm";
-export * from "./security.secrets";
+export * from "./shell.js";
+export * from "./filesystem.js";
+export * from "./fetch.js";
+export * from "./llm.js";
+export * from "./security.secrets.js";
+export * from "./process-utils.js";
 
 import type { Capabilities } from "tjs-lang";
 import {
   createShellCapability,
   type ShellCapabilityOptions,
   READ_ONLY_SHELL,
-} from "./shell";
+} from "./shell.js";
 import {
   createFilesystemCapability,
   type FilesystemCapabilityOptions,
   createSourceReadOnly,
-} from "./filesystem";
-import { createFetchCapability, type FetchCapabilityOptions } from "./fetch";
-import { createLLMCapability, type LLMCapabilityOptions } from "./llm";
+} from "./filesystem.js";
+import { createFetchCapability, type FetchCapabilityOptions } from "./fetch.js";
+import { createLLMCapability, type LLMCapabilityOptions } from "./llm.js";
 
 /**
  * Options for creating a complete capability set

@@ -14,6 +14,7 @@
 import { spawn, type SpawnOptions } from "child_process";
 import { resolve, relative, normalize, isAbsolute } from "path";
 import { homedir } from "os";
+import { killProcessTree } from "./process-utils.js";
 
 export interface ShellCommand {
   /** The command binary (e.g., 'ls', 'git', 'npm') */
@@ -418,7 +419,9 @@ export function createShellCapability(
           HOME: resolvedWorkdir, // Fake home to break ~ expansion
           ...config.env,
         },
-        timeout,
+        // CRITICAL: detached: true on Unix creates a process group
+        // This allows us to kill ALL spawned children, not just the parent
+        detached: process.platform !== "win32",
         shell: false, // CRITICAL: never use shell=true
       };
 
@@ -429,11 +432,18 @@ export function createShellCapability(
       let outputSize = 0;
       let killed = false;
 
+      // Helper to kill the entire process tree, not just the parent
+      const killTree = () => {
+        if (proc.pid) {
+          killProcessTree(proc.pid);
+        }
+      };
+
       proc.stdout?.on("data", (data: Buffer) => {
         outputSize += data.length;
         if (outputSize > maxOutput && !killed) {
           killed = true;
-          proc.kill("SIGTERM");
+          killTree();
           onBlocked?.(binary, args, "Output exceeded maximum size");
           reject(new Error(OPAQUE_ERROR));
           return;
@@ -445,7 +455,7 @@ export function createShellCapability(
         outputSize += data.length;
         if (outputSize > maxOutput && !killed) {
           killed = true;
-          proc.kill("SIGTERM");
+          killTree();
           onBlocked?.(binary, args, "Output exceeded maximum size");
           reject(new Error(OPAQUE_ERROR));
           return;
@@ -466,11 +476,11 @@ export function createShellCapability(
         reject(new Error(OPAQUE_ERROR));
       });
 
-      // Timeout safety net
+      // Timeout safety net - kills entire process tree
       setTimeout(() => {
         if (!killed) {
           killed = true;
-          proc.kill("SIGKILL");
+          killTree();
           onBlocked?.(binary, args, "Timeout");
           reject(new Error(OPAQUE_ERROR));
         }

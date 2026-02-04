@@ -79,7 +79,32 @@ export {
   createChatCapabilities,
   type SecurityLevel,
   getSecurityDefaults,
-} from "./capabilities";
+
+  // Security utilities (for integration)
+  BLOCKED_FILE_PATTERNS,
+  DANGEROUS_PATH_PATTERNS,
+  DANGEROUS_ENV_VARS,
+  DANGEROUS_ENV_PREFIXES,
+  BLOCKED_HOSTNAMES,
+  BLOCKED_HOSTNAME_SUFFIXES,
+  CLOUD_METADATA_IPS,
+  isBlocked as isBlockedPath,
+  isDangerousEnvVar,
+  sanitizeEnv,
+  isBlockedHostname,
+  isPrivateIP,
+  isCloudMetadataIP,
+  type BlockedPattern,
+  type DangerousPattern,
+
+  // Process utilities
+  killProcessTree,
+  terminateProcessTree,
+  safeSpawn,
+  isProcessRunning,
+  type SafeSpawnOptions,
+  type SafeSpawnResult,
+} from "./capabilities/index.js";
 
 // Executor
 export {
@@ -89,7 +114,7 @@ export {
   type ExecutionResult,
   createOpenClawExecutor,
   createSafetyMiddleware,
-} from "./executor/safe-executor";
+} from "./executor/safe-executor.js";
 
 // Trust Levels
 export {
@@ -99,7 +124,7 @@ export {
   getCapabilitiesForTrustLevel,
   inferTrustLevel,
   validateTrustForSource,
-} from "./executor/trust-levels";
+} from "./executor/trust-levels.js";
 
 // Skill Loading
 export {
@@ -108,7 +133,7 @@ export {
   validateSkill,
   type LoadedSkill,
   type SkillManifest,
-} from "./executor/skill-loader";
+} from "./executor/skill-loader.js";
 
 // Rate Limiting & Flood Protection
 export {
@@ -119,4 +144,4 @@ export {
   type RateLimiterOptions,
   type RateLimitResult,
   type RejectionReason,
-} from "./executor/rate-limiter";
+} from "./executor/rate-limiter.js";
