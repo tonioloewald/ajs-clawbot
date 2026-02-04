@@ -34,7 +34,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "tjs-lang": "file:../tosijs-agent"
+    "tjs-lang": "^0.2.8"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -55,8 +55,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/user/ajs-clawbot.git"
+    "url": "git+https://github.com/tonioloewald/ajs-clawbot.git"
   },
-  "author": "",
+  "author": "Tonio Loewald",
   "license": "Apache-2.0"
 }
